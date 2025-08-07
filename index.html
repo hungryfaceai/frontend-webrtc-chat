@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebRTC P2P Video Chat</title>
+  <style>
+    video {
+      width: 45%;
+      margin: 10px;
+      background: black;
+    }
+  </style>
+</head>
+<body>
+  <h2>WebRTC Peer-to-Peer Video Chat</h2>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+  <br>
+  <button id="startButton">Start</button>
+  <button id="callButton">Call</button>
+
+  <script src="app.js"></script>
+</body>
+</html>
