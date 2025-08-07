@@ -1,5 +1,11 @@
 const SIGNALING_SERVER_URL = 'wss://signaling-server-f5gu.onrender.com';
 const socket = new WebSocket(SIGNALING_SERVER_URL);
+let isSocketOpen = false;
+
+socket.onopen = () => {
+  isSocketOpen = true;
+  console.log("✅ WebSocket connected");
+};
 
 let localStream;
 let isCaller = false;
@@ -29,6 +35,11 @@ document.getElementById('startButton').onclick = async () => {
 };
 
 document.getElementById('callButton').onclick = async () => {
+  if (!isSocketOpen) {
+    alert("Please wait: signaling server not connected.");
+    return;
+  }
+
   isCaller = true;
   await startLocalStream();
   const offer = await peerConnection.createOffer();
@@ -168,7 +179,7 @@ socket.onmessage = async (event) => {
 };
 
 peerConnection.onicecandidate = event => {
-  if (event.candidate) {
+  if (event.candidate && isSocketOpen) {
     sendMessage({ type: 'candidate', candidate: event.candidate });
   }
 };
@@ -190,7 +201,11 @@ peerConnection.ontrack = event => {
 };
 
 function sendMessage(message) {
-  socket.send(JSON.stringify(message));
+  if (isSocketOpen) {
+    socket.send(JSON.stringify(message));
+  } else {
+    console.warn("⚠️ WebSocket not ready. Message not sent:", message);
+  }
 }
 
 function setMicEnabled(enabled) {
@@ -208,7 +223,6 @@ async function startLocalStream() {
   muteButton.disabled = false;
   cameraButton.disabled = false;
   speakerButton.disabled = false;
-  fullscreenButton.disabled = false;
   musicButton.disabled = false;
   loopButton.disabled = false;
   volumeSlider.disabled = false;
