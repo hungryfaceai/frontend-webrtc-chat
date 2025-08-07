@@ -116,7 +116,7 @@ musicButton.onclick = async () => {
     const source = musicContext.createMediaElementSource(musicAudio);
     const destination = musicContext.createMediaStreamDestination();
     source.connect(destination);
-    source.connect(musicContext.destination);
+    //source.connect(musicContext.destination);
 
     musicTrack = destination.stream.getAudioTracks()[0];
     peerConnection.addTrack(musicTrack, destination.stream);
