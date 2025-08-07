@@ -15,7 +15,6 @@ const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
-const volumeSlider = document.getElementById('volumeSlider');
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -46,14 +45,8 @@ cameraButton.onclick = () => {
 
 speakerButton.onclick = () => {
   isSpeakerMuted = !isSpeakerMuted;
-  remoteVideo.volume = isSpeakerMuted ? 0 : volumeSlider.value;
+  remoteVideo.muted = isSpeakerMuted;
   speakerButton.textContent = isSpeakerMuted ? 'Unmute Speakers' : 'Mute Speakers';
-};
-
-volumeSlider.oninput = () => {
-  if (!isSpeakerMuted) {
-    remoteVideo.volume = volumeSlider.value;
-  }
 };
 
 fullscreenButton.onclick = () => {
@@ -108,7 +101,7 @@ peerConnection.ontrack = event => {
   remoteVideo.srcObject = stream;
 
   remoteVideo.onloadedmetadata = () => {
-    remoteVideo.volume = isSpeakerMuted ? 0 : volumeSlider.value;
+    remoteVideo.muted = isSpeakerMuted;
     remoteVideo.play().catch(err => {
       console.warn("⚠️ Auto-play error:", err);
       document.addEventListener("click", () => remoteVideo.play());
