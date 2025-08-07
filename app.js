@@ -15,6 +15,8 @@ const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
+const musicButton = document.getElementById('musicButton');
+
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -65,6 +67,30 @@ fullscreenButton.onclick = () => {
     remoteVideo.webkitRequestFullscreen();
   } else if (remoteVideo.msRequestFullscreen) {
     remoteVideo.msRequestFullscreen();
+  }
+};
+
+musicButton.onclick = async () => {
+  try {
+    const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
+
+    const audio = new Audio(audioUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.loop = false;
+    await audio.play();
+
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaElementSource(audio);
+    const destination = audioContext.createMediaStreamDestination();
+    source.connect(destination);
+    source.connect(audioContext.destination);
+
+    const musicTrack = destination.stream.getAudioTracks()[0];
+    peerConnection.addTrack(musicTrack, destination.stream);
+
+    console.log("🎵 Streaming music to callee");
+  } catch (err) {
+    console.error("❌ Music playback failed:", err);
   }
 };
 
@@ -149,4 +175,6 @@ async function startLocalStream() {
   muteButton.disabled = false;
   cameraButton.disabled = false;
   speakerButton.disabled = false;
+  musicButton.disabled = false;
+
 }
