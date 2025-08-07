@@ -27,12 +27,7 @@
     #volumeControls {
       margin-top: 20px;
     }
-    #volumeControls label {
-      display: block;
-      margin: 10px auto;
-      font-size: 14px;
-    }
-    input[type=range] {
+    input[type="range"] {
       width: 300px;
     }
   </style>
@@ -51,7 +46,12 @@
     <button id="speakerButton" disabled>Mute Speakers</button>
   </div>
 
-  <div id="volumeControls"></div>
+  <div id="volumeControls">
+    <label>
+      🔊 Speaker Volume:
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
+    </label>
+  </div>
 
   <script src="app.js"></script>
 </body>
