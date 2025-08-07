@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>WebRTC P2P Video Chat</title>
+  <title>Baby Monitor - WebRTC</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -15,7 +15,7 @@
       margin: 10px;
       background: #000;
     }
-    button {
+    button, select {
       margin: 10px;
       padding: 10px 20px;
       font-size: 16px;
@@ -27,12 +27,13 @@
   </style>
 </head>
 <body>
-  <h2>WebRTC P2P Video Chat 2</h2>
+  <h2>Baby Monitor - WebRTC P2P Video Chat</h2>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
   <div id="controls">
+    <select id="cameraSelect"></select><br>
     <button id="startButton">Start</button>
     <button id="callButton">Call</button>
     <button id="muteButton" disabled>Mute Mic</button>
