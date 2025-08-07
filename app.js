@@ -1,8 +1,10 @@
-const SIGNALING_SERVER_URL = 'wss://signaling-server-f5gu.onrender.com'; // Replace with your signaling server
+const SIGNALING_SERVER_URL = 'wss://signaling-server-f5gu.onrender.com';
 const socket = new WebSocket(SIGNALING_SERVER_URL);
 
 let localStream;
 let isCaller = false;
+let isMicMuted = false;
+let isCameraOff = false;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -30,6 +32,34 @@ document.getElementById('callButton').onclick = async () => {
   console.log("📞 Offer sent");
 };
 
+// Mute/Unmute Microphone
+document.getElementById('muteButton').onclick = () => {
+  if (!localStream) return;
+
+  isMicMuted = !isMicMuted;
+
+  localStream.getAudioTracks().forEach(track => {
+    track.enabled = !isMicMuted;
+  });
+
+  document.getElementById('muteButton').textContent = isMicMuted ? 'Unmute Mic' : 'Mute Mic';
+  console.log(isMicMuted ? "🔇 Mic muted" : "🎤 Mic unmuted");
+};
+
+// Turn Camera On/Off
+document.getElementById('cameraButton').onclick = () => {
+  if (!localStream) return;
+
+  isCameraOff = !isCameraOff;
+
+  localStream.getVideoTracks().forEach(track => {
+    track.enabled = !isCameraOff;
+  });
+
+  document.getElementById('cameraButton').textContent = isCameraOff ? 'Turn Camera On' : 'Turn Camera Off';
+  console.log(isCameraOff ? "📷 Camera off" : "🎥 Camera on");
+};
+
 // Handle incoming WebSocket messages (with Blob fix for iOS)
 socket.onmessage = async (event) => {
   let data;
@@ -45,6 +75,13 @@ socket.onmessage = async (event) => {
 
   if (data.type === 'offer' && !isCaller) {
     console.log("📩 Processing offer");
+    if (!localStream) {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      console.log("🎥 Local stream started (late)");
+    }
+
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
@@ -60,7 +97,8 @@ socket.onmessage = async (event) => {
   if (data.type === 'candidate') {
     console.log("🧊 ICE candidate received:", data.candidate);
     try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      const candidate = new RTCIceCandidate(data.candidate);
+      await peerConnection.addIceCandidate(candidate);
     } catch (err) {
       console.error("❌ ICE error", err);
     }
@@ -79,9 +117,14 @@ peerConnection.ontrack = event => {
   const [stream] = event.streams;
   remoteVideo.srcObject = stream;
 
-  // Force autoplay for iOS
   remoteVideo.onloadedmetadata = () => {
-    remoteVideo.play().catch(err => console.warn("⚠️ Auto-play error:", err));
+    remoteVideo
+      .play()
+      .then(() => console.log("▶️ Remote video playing"))
+      .catch(err => {
+        console.warn("⚠️ Auto-play error:", err);
+        document.addEventListener("click", () => remoteVideo.play());
+      });
   };
 
   console.log("📡 Remote stream received");
