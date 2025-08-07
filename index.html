@@ -24,12 +24,6 @@
     #controls {
       margin-top: 20px;
     }
-    #volumeControls {
-      margin-top: 20px;
-    }
-    input[type="range"] {
-      width: 300px;
-    }
   </style>
 </head>
 <body>
@@ -45,13 +39,6 @@
     <button id="cameraButton" disabled>Turn Camera Off</button>
     <button id="speakerButton" disabled>Mute Speakers</button>
     <button id="fullscreenButton" disabled>Full Screen</button>
-  </div>
-
-  <div id="volumeControls">
-    <label>
-      🔊 Speaker Volume:
-      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
-    </label>
   </div>
 
   <script src="app.js"></script>
