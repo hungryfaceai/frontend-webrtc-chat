@@ -1,4 +1,4 @@
-const SIGNALING_SERVER_URL = 'wss://your-signaling-server.onrender.com'; // <-- Replace this
+const SIGNALING_SERVER_URL = 'wss://signaling-server-f5gu.onrender.com'; // <-- Replace this
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 });
