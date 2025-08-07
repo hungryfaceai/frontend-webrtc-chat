@@ -27,9 +27,10 @@ document.getElementById('callButton').onclick = async () => {
 
 socket.onmessage = async (event) => {
   const message = JSON.parse(event.data);
+  console.log("📩 Received message:", message);
 
   if (message.type === 'offer' && !isCaller) {
-    console.log("📩 Received offer");
+    console.log("📩 Processing offer");
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: message.sdp }));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
@@ -43,14 +44,15 @@ socket.onmessage = async (event) => {
   }
 
   if (message.type === 'candidate') {
-    console.log("🧊 ICE candidate received");
+    console.log("🧊 ICE candidate received:", message.candidate);
     try {
       await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
     } catch (err) {
-      console.error("Error adding ICE candidate", err);
+      console.error("❌ ICE error", err);
     }
   }
 };
+
 
 peerConnection.onicecandidate = event => {
   if (event.candidate) {
