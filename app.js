@@ -3,6 +3,7 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 
 let localStream;
 let isCaller = false;
+let isSpeakerMuted = false;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -12,6 +13,10 @@ const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
+const speakerButton = document.getElementById('speakerButton');
+const volumeControls = document.getElementById('volumeControls');
+
+const audioContexts = []; // Store all per-audio-track gain controls
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -19,7 +24,7 @@ document.getElementById('startButton').onclick = async () => {
 
 document.getElementById('callButton').onclick = async () => {
   isCaller = true;
-  await startLocalStream(); // Ensure tracks are added before offer
+  await startLocalStream();
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   sendMessage({ type: 'offer', sdp: offer.sdp });
@@ -28,12 +33,8 @@ document.getElementById('callButton').onclick = async () => {
 
 muteButton.onclick = () => {
   if (!localStream) return;
-
   const audioTrack = localStream.getAudioTracks()[0];
-  if (!audioTrack) {
-    console.warn("⚠️ No audio track found to mute/unmute.");
-    return;
-  }
+  if (!audioTrack) return;
 
   audioTrack.enabled = !audioTrack.enabled;
   muteButton.textContent = audioTrack.enabled ? 'Mute Mic' : 'Unmute Mic';
@@ -42,16 +43,22 @@ muteButton.onclick = () => {
 
 cameraButton.onclick = () => {
   if (!localStream) return;
-
   const videoTrack = localStream.getVideoTracks()[0];
-  if (!videoTrack) {
-    console.warn("⚠️ No video track found to toggle.");
-    return;
-  }
+  if (!videoTrack) return;
 
   videoTrack.enabled = !videoTrack.enabled;
   cameraButton.textContent = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
   console.log(videoTrack.enabled ? "🎥 Camera on" : "📷 Camera off");
+};
+
+speakerButton.onclick = () => {
+  isSpeakerMuted = !isSpeakerMuted;
+  audioContexts.forEach(ctx => {
+    ctx.gainNode.gain.value = isSpeakerMuted ? 0 : ctx.slider.value;
+  });
+
+  speakerButton.textContent = isSpeakerMuted ? 'Unmute Speakers' : 'Mute Speakers';
+  console.log(isSpeakerMuted ? "🔈 Speakers muted" : "🔊 Speakers unmuted");
 };
 
 socket.onmessage = async (event) => {
@@ -69,7 +76,6 @@ socket.onmessage = async (event) => {
   if (data.type === 'offer' && !isCaller) {
     console.log("📩 Processing offer");
     await startLocalStream();
-
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
@@ -86,59 +92,4 @@ socket.onmessage = async (event) => {
     console.log("🧊 ICE candidate received:", data.candidate);
     try {
       const candidate = new RTCIceCandidate(data.candidate);
-      await peerConnection.addIceCandidate(candidate);
-    } catch (err) {
-      console.error("❌ ICE error", err);
-    }
-  }
-};
-
-peerConnection.onicecandidate = event => {
-  if (event.candidate) {
-    sendMessage({ type: 'candidate', candidate: event.candidate });
-  }
-};
-
-peerConnection.ontrack = event => {
-  const [stream] = event.streams;
-  remoteVideo.srcObject = stream;
-
-  remoteVideo.onloadedmetadata = () => {
-    remoteVideo
-      .play()
-      .then(() => console.log("▶️ Remote video playing"))
-      .catch(err => {
-        console.warn("⚠️ Auto-play error:", err);
-        document.addEventListener("click", () => remoteVideo.play());
-      });
-  };
-
-  console.log("📡 Remote stream received");
-};
-
-function sendMessage(message) {
-  socket.send(JSON.stringify(message));
-}
-
-async function startLocalStream() {
-  try {
-    if (!localStream) {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-      console.log("🎥 Local stream started");
-    }
-
-    // Ensure audio and video start unmuted
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) audioTrack.enabled = true;
-
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) videoTrack.enabled = true;
-
-    muteButton.disabled = false;
-    cameraButton.disabled = false;
-  } catch (err) {
-    console.error("❌ Error accessing media devices:", err);
-  }
-}
+      await peer
