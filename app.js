@@ -4,10 +4,6 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 let localStream;
 let isCaller = false;
 let isSpeakerMuted = false;
-let musicAudio = null;
-let musicSource = null;
-let musicStream = null;
-let musicTrackSender = null;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -72,48 +68,26 @@ fullscreenButton.onclick = () => {
 };
 
 musicButton.onclick = async () => {
-  if (!musicAudio) {
-    try {
-      const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
+  try {
+    const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
 
-      musicAudio = new Audio(audioUrl);
-      musicAudio.crossOrigin = 'anonymous';
-      musicAudio.loop = true;
-      await musicAudio.play();
+    const audio = new Audio(audioUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.loop = false;
+    await audio.play();
 
-      const audioContext = new AudioContext();
-      musicSource = audioContext.createMediaElementSource(musicAudio);
-      const destination = audioContext.createMediaStreamDestination();
-      musicSource.connect(destination);
-      musicSource.connect(audioContext.destination);
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaElementSource(audio);
+    const destination = audioContext.createMediaStreamDestination();
+    source.connect(destination);
+    source.connect(audioContext.destination);
 
-      musicStream = destination.stream;
-      const musicTrack = musicStream.getAudioTracks()[0];
-      musicTrackSender = peerConnection.addTrack(musicTrack, musicStream);
+    const musicTrack = destination.stream.getAudioTracks()[0];
+    peerConnection.addTrack(musicTrack, destination.stream);
 
-      musicButton.textContent = 'Stop Music';
-      console.log("🎵 Music started and streaming to callee");
-    } catch (err) {
-      console.error("❌ Music playback failed:", err);
-      musicAudio = null;
-    }
-  } else {
-    musicAudio.pause();
-    musicAudio.currentTime = 0;
-    musicAudio = null;
-
-    if (musicTrackSender) {
-      peerConnection.removeTrack(musicTrackSender);
-      musicTrackSender = null;
-    }
-
-    if (musicStream) {
-      musicStream.getTracks().forEach(track => track.stop());
-      musicStream = null;
-    }
-
-    musicButton.textContent = 'Play Music to Baby';
-    console.log("🛑 Music stopped");
+    console.log("🎵 Streaming music to callee");
+  } catch (err) {
+    console.error("❌ Music playback failed:", err);
   }
 };
 
