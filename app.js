@@ -12,16 +12,11 @@ const peerConnection = new RTCPeerConnection({
 
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
+const muteButton = document.getElementById('muteButton');
+const cameraButton = document.getElementById('cameraButton');
 
 document.getElementById('startButton').onclick = async () => {
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = localStream;
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    console.log("🎥 Local stream started");
-  } catch (err) {
-    console.error("❌ Error accessing media devices:", err);
-  }
+  await startLocalStream();
 };
 
 document.getElementById('callButton').onclick = async () => {
@@ -33,7 +28,7 @@ document.getElementById('callButton').onclick = async () => {
 };
 
 // Mute/Unmute Microphone
-document.getElementById('muteButton').onclick = () => {
+muteButton.onclick = () => {
   if (!localStream) return;
 
   isMicMuted = !isMicMuted;
@@ -42,12 +37,12 @@ document.getElementById('muteButton').onclick = () => {
     track.enabled = !isMicMuted;
   });
 
-  document.getElementById('muteButton').textContent = isMicMuted ? 'Unmute Mic' : 'Mute Mic';
+  muteButton.textContent = isMicMuted ? 'Unmute Mic' : 'Mute Mic';
   console.log(isMicMuted ? "🔇 Mic muted" : "🎤 Mic unmuted");
 };
 
 // Turn Camera On/Off
-document.getElementById('cameraButton').onclick = () => {
+cameraButton.onclick = () => {
   if (!localStream) return;
 
   isCameraOff = !isCameraOff;
@@ -56,14 +51,13 @@ document.getElementById('cameraButton').onclick = () => {
     track.enabled = !isCameraOff;
   });
 
-  document.getElementById('cameraButton').textContent = isCameraOff ? 'Turn Camera On' : 'Turn Camera Off';
+  cameraButton.textContent = isCameraOff ? 'Turn Camera On' : 'Turn Camera Off';
   console.log(isCameraOff ? "📷 Camera off" : "🎥 Camera on");
 };
 
-// Handle incoming WebSocket messages (with Blob fix for iOS)
+// WebSocket Message Handling
 socket.onmessage = async (event) => {
   let data;
-
   if (event.data instanceof Blob) {
     const text = await event.data.text();
     data = JSON.parse(text);
@@ -75,11 +69,9 @@ socket.onmessage = async (event) => {
 
   if (data.type === 'offer' && !isCaller) {
     console.log("📩 Processing offer");
+
     if (!localStream) {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-      console.log("🎥 Local stream started (late)");
+      await startLocalStream(); // Start local stream before answering
     }
 
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
@@ -105,14 +97,14 @@ socket.onmessage = async (event) => {
   }
 };
 
-// Send local ICE candidates to peer
+// ICE
 peerConnection.onicecandidate = event => {
   if (event.candidate) {
     sendMessage({ type: 'candidate', candidate: event.candidate });
   }
 };
 
-// Display remote stream
+// Remote Stream
 peerConnection.ontrack = event => {
   const [stream] = event.streams;
   remoteVideo.srcObject = stream;
@@ -130,7 +122,22 @@ peerConnection.ontrack = event => {
   console.log("📡 Remote stream received");
 };
 
-// Helper function to send messages to signaling server
+// Messaging
 function sendMessage(message) {
   socket.send(JSON.stringify(message));
+}
+
+// 🔧 Helper: Start local stream and enable controls
+async function startLocalStream() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    console.log("🎥 Local stream started");
+
+    muteButton.disabled = false;
+    cameraButton.disabled = false;
+  } catch (err) {
+    console.error("❌ Error accessing media devices:", err);
+  }
 }
