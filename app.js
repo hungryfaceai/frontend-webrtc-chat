@@ -133,4 +133,26 @@ async function startLocalStream() {
       localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
       console.log("🎥 Local stream started");
     } else {
-      console.log("✅ Local stream already
+      console.log("✅ Local stream already active");
+    }
+
+    // Double-check audio and video track states
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = true; // Make sure it's not muted initially
+      console.log("🎤 Mic is ON");
+    } else {
+      console.warn("⚠️ No audio track found.");
+    }
+
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = true;
+    }
+
+    muteButton.disabled = false;
+    cameraButton.disabled = false;
+  } catch (err) {
+    console.error("❌ Error accessing media devices:", err);
+  }
+}
