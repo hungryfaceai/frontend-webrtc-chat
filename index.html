@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>WebRTC Benjaminshek monitor</title>
+  <title>WebRTC P2P Video Chat</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -21,12 +21,14 @@
   </style>
 </head>
 <body>
-  <h2>WebRTC P2P Video Chat v3</h2>
+  <h2>WebRTC Benjaminshek Monitor v1</h2>
   <video id="localVideo" autoplay playsinline muted></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline muted></video>
   <br>
   <button id="startButton">Start</button>
   <button id="callButton">Call</button>
+  <button id="muteButton">Mute Mic</button>
+  <button id="cameraButton">Turn Camera Off</button>
 
   <script src="app.js"></script>
 </body>
