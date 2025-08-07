@@ -92,4 +92,85 @@ socket.onmessage = async (event) => {
     console.log("🧊 ICE candidate received:", data.candidate);
     try {
       const candidate = new RTCIceCandidate(data.candidate);
-      await peer
+      await peerConnection.addIceCandidate(candidate);
+    } catch (err) {
+      console.error("❌ ICE error", err);
+    }
+  }
+};
+
+peerConnection.onicecandidate = event => {
+  if (event.candidate) {
+    sendMessage({ type: 'candidate', candidate: event.candidate });
+  }
+};
+
+peerConnection.ontrack = event => {
+  const [stream] = event.streams;
+  remoteVideo.srcObject = stream;
+
+  remoteVideo.onloadedmetadata = () => {
+    remoteVideo.play().catch(err => {
+      console.warn("⚠️ Auto-play error:", err);
+      document.addEventListener("click", () => remoteVideo.play());
+    });
+  };
+
+  console.log("📡 Remote stream received");
+
+  if (event.track.kind === 'audio') {
+    setupAudioControl(stream);
+  }
+};
+
+function sendMessage(message) {
+  socket.send(JSON.stringify(message));
+}
+
+async function startLocalStream() {
+  try {
+    if (!localStream) {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      console.log("🎥 Local stream started");
+    }
+
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) audioTrack.enabled = true;
+
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) videoTrack.enabled = true;
+
+    muteButton.disabled = false;
+    cameraButton.disabled = false;
+    speakerButton.disabled = false;
+  } catch (err) {
+    console.error("❌ Error accessing media devices:", err);
+  }
+}
+
+function setupAudioControl(stream) {
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+  const gainNode = audioContext.createGain();
+  source.connect(gainNode).connect(audioContext.destination);
+
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = 0;
+  slider.max = 1;
+  slider.step = 0.01;
+  slider.value = 1;
+  slider.oninput = () => {
+    gainNode.gain.value = isSpeakerMuted ? 0 : slider.value;
+  };
+
+  const label = document.createElement('label');
+  label.textContent = '🔊 Volume: ';
+  label.appendChild(slider);
+
+  volumeControls.appendChild(label);
+
+  audioContexts.push({ audioContext, gainNode, slider });
+}
