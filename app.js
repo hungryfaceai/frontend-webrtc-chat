@@ -6,6 +6,10 @@ let isCaller = false;
 let isSpeakerMuted = false;
 let currentVideoDeviceId = null;
 
+let musicAudio = null;
+let musicTrackSender = null;
+let isMusicPlaying = false;
+
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 });
@@ -71,28 +75,56 @@ fullscreenButton.onclick = () => {
 };
 
 musicButton.onclick = async () => {
-  try {
-    const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
+  if (!isMusicPlaying) {
+    try {
+      const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
 
-    const audio = new Audio(audioUrl);
-    audio.crossOrigin = 'anonymous';
-    audio.loop = false;
-    await audio.play();
+      musicAudio = new Audio(audioUrl);
+      musicAudio.crossOrigin = 'anonymous';
+      musicAudio.loop = false;
 
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaElementSource(audio);
-    const destination = audioContext.createMediaStreamDestination();
-    source.connect(destination);
-    source.connect(audioContext.destination);
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaElementSource(musicAudio);
+      const destination = audioContext.createMediaStreamDestination();
+      source.connect(destination);
+      source.connect(audioContext.destination);
 
-    const musicTrack = destination.stream.getAudioTracks()[0];
-    peerConnection.addTrack(musicTrack, destination.stream);
+      const musicTrack = destination.stream.getAudioTracks()[0];
+      musicTrackSender = peerConnection.addTrack(musicTrack, destination.stream);
 
-    console.log("🎵 Streaming music to callee");
-  } catch (err) {
-    console.error("❌ Music playback failed:", err);
+      musicAudio.addEventListener('ended', () => {
+        stopMusic();
+      });
+
+      await musicAudio.play();
+
+      isMusicPlaying = true;
+      musicButton.textContent = "Stop Music";
+      console.log("🎵 Streaming music to callee");
+    } catch (err) {
+      console.error("❌ Music playback failed:", err);
+    }
+  } else {
+    stopMusic();
   }
 };
+
+function stopMusic() {
+  if (musicAudio) {
+    musicAudio.pause();
+    musicAudio.currentTime = 0;
+    musicAudio = null;
+  }
+
+  if (musicTrackSender) {
+    peerConnection.removeTrack(musicTrackSender);
+    musicTrackSender = null;
+  }
+
+  isMusicPlaying = false;
+  musicButton.textContent = "Play Music to Baby";
+  console.log("🛑 Music stopped");
+}
 
 cameraSelect.onchange = async () => {
   currentVideoDeviceId = cameraSelect.value;
