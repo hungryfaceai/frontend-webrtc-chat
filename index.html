@@ -15,7 +15,7 @@
       margin: 10px;
       background: #000;
     }
-    button, select, input[type=range] {
+    button, select, input[type="range"] {
       margin: 10px;
       padding: 10px 20px;
       font-size: 16px;
@@ -27,7 +27,7 @@
   </style>
 </head>
 <body>
-  <h2>WebRTC P2P Video Chat 🎥🎵</h2>
+  <h2>WebRTC P2P Video Chat 🎥 + Music 🎵</h2>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
@@ -37,24 +37,25 @@
     <button id="callButton">Call</button>
     <button id="muteButton" disabled>Mute Mic</button>
     <button id="cameraButton" disabled>Turn Camera Off</button>
+    <button id="switchCameraButton" disabled>Switch Camera</button>
     <button id="speakerButton" disabled>Mute Speakers</button>
     <button id="fullscreenButton" disabled>Full Screen</button>
-
     <br>
-
     <select id="trackSelect" disabled>
       <option value="https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3">Lullaby 1</option>
       <option value="https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-164373.mp3">Lullaby 2</option>
     </select>
     <button id="musicButton" disabled>Play Music to Callee</button>
     <button id="loopButton" disabled>Enable Loop</button>
-    <label for="volumeSlider">Volume:</label>
+    <label for="volumeSlider" style="margin-left: 10px;">Volume:</label>
     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" disabled>
   </div>
-  
+
   <footer class="copyright">
     &copy; 2025 Fishex Ltd. All rights reserved.
   </footer>
+  
   <script src="app.js"></script>
 </body>
 </html>
+
