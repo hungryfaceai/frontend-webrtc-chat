@@ -14,6 +14,7 @@ const remoteVideo = document.getElementById('remoteVideo');
 const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
+const fullscreenButton = document.getElementById('fullscreenButton');
 const volumeSlider = document.getElementById('volumeSlider');
 
 document.getElementById('startButton').onclick = async () => {
@@ -52,6 +53,16 @@ speakerButton.onclick = () => {
 volumeSlider.oninput = () => {
   if (!isSpeakerMuted) {
     remoteVideo.volume = volumeSlider.value;
+  }
+};
+
+fullscreenButton.onclick = () => {
+  if (remoteVideo.requestFullscreen) {
+    remoteVideo.requestFullscreen();
+  } else if (remoteVideo.webkitRequestFullscreen) {
+    remoteVideo.webkitRequestFullscreen();
+  } else if (remoteVideo.msRequestFullscreen) {
+    remoteVideo.msRequestFullscreen();
   }
 };
 
@@ -104,6 +115,7 @@ peerConnection.ontrack = event => {
     });
   };
 
+  fullscreenButton.disabled = false;
   console.log("📡 Remote stream received");
 };
 
