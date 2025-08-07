@@ -4,6 +4,7 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 let localStream;
 let isCaller = false;
 let isSpeakerMuted = false;
+let currentVideoDeviceId = null;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -16,25 +17,24 @@ const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
 const musicButton = document.getElementById('musicButton');
-
+const cameraSelect = document.getElementById('cameraSelect');
 
 document.getElementById('startButton').onclick = async () => {
+  await populateCameraOptions();
   await startLocalStream();
 };
 
 document.getElementById('callButton').onclick = async () => {
   isCaller = true;
+  await populateCameraOptions();
   await startLocalStream();
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   sendMessage({ type: 'offer', sdp: offer.sdp });
   console.log("📞 Offer sent");
 
-  // Caller should mute their mic
   setMicEnabled(false);
   muteButton.textContent = 'Unmute Mic';
-
-  // Speaker ON by default
   isSpeakerMuted = false;
   remoteVideo.muted = false;
   speakerButton.textContent = 'Mute Speakers';
@@ -94,6 +94,11 @@ musicButton.onclick = async () => {
   }
 };
 
+cameraSelect.onchange = async () => {
+  currentVideoDeviceId = cameraSelect.value;
+  await startLocalStream();
+};
+
 socket.onmessage = async (event) => {
   let data;
   if (event.data instanceof Blob) {
@@ -104,17 +109,15 @@ socket.onmessage = async (event) => {
   }
 
   if (data.type === 'offer' && !isCaller) {
+    await populateCameraOptions();
     await startLocalStream();
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     sendMessage({ type: 'answer', sdp: answer.sdp });
 
-    // Callee mic should be ON by default
     setMicEnabled(true);
     muteButton.textContent = 'Mute Mic';
-
-    // Speaker ON by default
     isSpeakerMuted = false;
     remoteVideo.muted = false;
     speakerButton.textContent = 'Mute Speakers';
@@ -166,15 +169,59 @@ function setMicEnabled(enabled) {
 }
 
 async function startLocalStream() {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = localStream;
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
   }
+
+  const constraints = {
+    audio: true,
+    video: currentVideoDeviceId
+      ? { deviceId: { exact: currentVideoDeviceId } }
+      : { facingMode: { ideal: 'environment' } }
+  };
+
+  localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  localVideo.srcObject = localStream;
+
+  const senders = peerConnection.getSenders();
+  localStream.getTracks().forEach(track => {
+    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+    if (sender) {
+      sender.replaceTrack(track);
+    } else {
+      peerConnection.addTrack(track, localStream);
+    }
+  });
 
   muteButton.disabled = false;
   cameraButton.disabled = false;
   speakerButton.disabled = false;
   musicButton.disabled = false;
+}
 
+async function populateCameraOptions() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+  cameraSelect.innerHTML = '';
+  videoDevices.forEach(device => {
+    const option = document.createElement('option');
+    option.value = device.deviceId;
+    option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+    cameraSelect.appendChild(option);
+  });
+
+  const backCam = videoDevices.find(device =>
+    device.label.toLowerCase().includes('back') ||
+    device.label.toLowerCase().includes('environment')
+  );
+
+  if (backCam) {
+    currentVideoDeviceId = backCam.deviceId;
+    cameraSelect.value = backCam.deviceId;
+  } else {
+    currentVideoDeviceId = videoDevices[0]?.deviceId || null;
+    cameraSelect.value = currentVideoDeviceId;
+  }
 }
