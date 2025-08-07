@@ -30,10 +30,14 @@ document.getElementById('callButton').onclick = async () => {
 muteButton.onclick = () => {
   if (!localStream) return;
 
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (!audioTrack) {
+    console.warn("⚠️ No audio track found to mute/unmute.");
+    return;
+  }
+
   isMicMuted = !isMicMuted;
-  localStream.getAudioTracks().forEach(track => {
-    track.enabled = !isMicMuted;
-  });
+  audioTrack.enabled = !isMicMuted;
 
   muteButton.textContent = isMicMuted ? 'Unmute Mic' : 'Mute Mic';
   console.log(isMicMuted ? "🔇 Mic muted" : "🎤 Mic unmuted");
@@ -42,10 +46,14 @@ muteButton.onclick = () => {
 cameraButton.onclick = () => {
   if (!localStream) return;
 
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (!videoTrack) {
+    console.warn("⚠️ No video track found to toggle.");
+    return;
+  }
+
   isCameraOff = !isCameraOff;
-  localStream.getVideoTracks().forEach(track => {
-    track.enabled = !isCameraOff;
-  });
+  videoTrack.enabled = !isCameraOff;
 
   cameraButton.textContent = isCameraOff ? 'Turn Camera On' : 'Turn Camera Off';
   console.log(isCameraOff ? "📷 Camera off" : "🎥 Camera on");
@@ -125,13 +133,4 @@ async function startLocalStream() {
       localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
       console.log("🎥 Local stream started");
     } else {
-      console.log("✅ Local stream already active");
-    }
-
-    // ✅ Enable control buttons regardless of when called
-    muteButton.disabled = false;
-    cameraButton.disabled = false;
-  } catch (err) {
-    console.error("❌ Error accessing media devices:", err);
-  }
-}
+      console.log("✅ Local stream already
