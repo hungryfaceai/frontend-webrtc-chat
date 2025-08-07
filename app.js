@@ -10,6 +10,9 @@ let musicAudio = null;
 let musicTrackSender = null;
 let isMusicPlaying = false;
 
+let pendingCandidates = [];
+let isRemoteDescriptionSet = false;
+
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 });
@@ -92,10 +95,7 @@ musicButton.onclick = async () => {
       const musicTrack = destination.stream.getAudioTracks()[0];
       musicTrackSender = peerConnection.addTrack(musicTrack, destination.stream);
 
-      musicAudio.addEventListener('ended', () => {
-        stopMusic();
-      });
-
+      musicAudio.addEventListener('ended', stopMusic);
       await musicAudio.play();
 
       isMusicPlaying = true;
@@ -144,6 +144,9 @@ socket.onmessage = async (event) => {
     await populateCameraOptions();
     await startLocalStream();
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+    isRemoteDescriptionSet = true;
+    flushPendingCandidates();
+
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     sendMessage({ type: 'answer', sdp: answer.sdp });
@@ -157,17 +160,32 @@ socket.onmessage = async (event) => {
 
   if (data.type === 'answer' && isCaller) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+    isRemoteDescriptionSet = true;
+    flushPendingCandidates();
   }
 
   if (data.type === 'candidate') {
-    try {
-      const candidate = new RTCIceCandidate(data.candidate);
-      await peerConnection.addIceCandidate(candidate);
-    } catch (err) {
-      console.error("❌ ICE error", err);
+    const candidate = new RTCIceCandidate(data.candidate);
+    if (isRemoteDescriptionSet) {
+      try {
+        await peerConnection.addIceCandidate(candidate);
+      } catch (err) {
+        console.error("❌ ICE error", err);
+      }
+    } else {
+      pendingCandidates.push(candidate);
     }
   }
 };
+
+function flushPendingCandidates() {
+  for (const candidate of pendingCandidates) {
+    peerConnection.addIceCandidate(candidate).catch(err =>
+      console.error("❌ ICE error (from buffer)", err)
+    );
+  }
+  pendingCandidates = [];
+}
 
 peerConnection.onicecandidate = event => {
   if (event.candidate) {
