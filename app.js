@@ -1,15 +1,16 @@
 const SIGNALING_SERVER_URL = 'wss://signaling-server-f5gu.onrender.com';
 const socket = new WebSocket(SIGNALING_SERVER_URL);
-let isSocketOpen = false;
-
-socket.onopen = () => {
-  isSocketOpen = true;
-  console.log("✅ WebSocket connected");
-};
 
 let localStream;
 let isCaller = false;
 let isSpeakerMuted = false;
+let musicAudio = null;
+let musicTrack = null;
+let musicContext = null;
+
+let isSocketOpen = false;
+let videoDevices = [];
+let currentCameraIndex = 0;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -19,6 +20,7 @@ const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
+const switchCameraButton = document.getElementById('switchCameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
 const musicButton = document.getElementById('musicButton');
@@ -26,9 +28,10 @@ const loopButton = document.getElementById('loopButton');
 const volumeSlider = document.getElementById('volumeSlider');
 const trackSelect = document.getElementById('trackSelect');
 
-let musicAudio = null;
-let musicTrack = null;
-let musicContext = null;
+socket.onopen = () => {
+  isSocketOpen = true;
+  console.log("✅ WebSocket connected");
+};
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -36,7 +39,7 @@ document.getElementById('startButton').onclick = async () => {
 
 document.getElementById('callButton').onclick = async () => {
   if (!isSocketOpen) {
-    alert("Please wait: signaling server not connected.");
+    alert("Please wait: WebSocket not connected");
     return;
   }
 
@@ -49,7 +52,6 @@ document.getElementById('callButton').onclick = async () => {
 
   setMicEnabled(false);
   muteButton.textContent = 'Unmute Mic';
-
   isSpeakerMuted = false;
   remoteVideo.muted = false;
   speakerButton.textContent = 'Mute Speakers';
@@ -67,6 +69,32 @@ cameraButton.onclick = () => {
   if (!videoTrack) return;
   videoTrack.enabled = !videoTrack.enabled;
   cameraButton.textContent = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
+};
+
+switchCameraButton.onclick = async () => {
+  if (videoDevices.length < 2) return;
+
+  const oldTrack = localStream.getVideoTracks()[0];
+  if (oldTrack) {
+    oldTrack.stop();
+    peerConnection.getSenders().forEach(sender => {
+      if (sender.track === oldTrack) peerConnection.removeTrack(sender);
+    });
+  }
+
+  currentCameraIndex = (currentCameraIndex + 1) % videoDevices.length;
+  const newDeviceId = videoDevices[currentCameraIndex].deviceId;
+
+  const newStream = await navigator.mediaDevices.getUserMedia({
+    video: { deviceId: { exact: newDeviceId } },
+    audio: false
+  });
+
+  const newTrack = newStream.getVideoTracks()[0];
+  localStream.removeTrack(oldTrack);
+  localStream.addTrack(newTrack);
+  peerConnection.addTrack(newTrack, localStream);
+  localVideo.srcObject = localStream;
 };
 
 speakerButton.onclick = () => {
@@ -104,7 +132,6 @@ musicButton.onclick = async () => {
 
   try {
     const selectedUrl = trackSelect.value;
-
     musicAudio = new Audio(selectedUrl);
     musicAudio.crossOrigin = 'anonymous';
     musicAudio.loop = loopButton.textContent === 'Disable Loop';
@@ -116,13 +143,11 @@ musicButton.onclick = async () => {
     const source = musicContext.createMediaElementSource(musicAudio);
     const destination = musicContext.createMediaStreamDestination();
     source.connect(destination);
-    //source.connect(musicContext.destination);
-
+    // source.connect(musicContext.destination); // Optional: remove local playback
     musicTrack = destination.stream.getAudioTracks()[0];
     peerConnection.addTrack(musicTrack, destination.stream);
 
     musicButton.textContent = 'Stop Music';
-    console.log("🎵 Streaming music to callee");
   } catch (err) {
     console.error("❌ Music playback failed:", err);
   }
@@ -135,9 +160,7 @@ loopButton.onclick = () => {
 };
 
 volumeSlider.oninput = () => {
-  if (musicAudio) {
-    musicAudio.volume = volumeSlider.value;
-  }
+  if (musicAudio) musicAudio.volume = volumeSlider.value;
 };
 
 socket.onmessage = async (event) => {
@@ -158,7 +181,6 @@ socket.onmessage = async (event) => {
 
     setMicEnabled(true);
     muteButton.textContent = 'Mute Mic';
-
     isSpeakerMuted = false;
     remoteVideo.muted = false;
     speakerButton.textContent = 'Mute Speakers';
@@ -187,24 +209,20 @@ peerConnection.onicecandidate = event => {
 peerConnection.ontrack = event => {
   const [stream] = event.streams;
   remoteVideo.srcObject = stream;
-
   remoteVideo.onloadedmetadata = () => {
     remoteVideo.muted = isSpeakerMuted;
     remoteVideo.play().catch(err => {
-      console.warn("⚠️ Auto-play error:", err);
       document.addEventListener("click", () => remoteVideo.play());
     });
   };
-
   fullscreenButton.disabled = false;
-  console.log("📡 Remote stream received");
 };
 
 function sendMessage(message) {
   if (isSocketOpen) {
     socket.send(JSON.stringify(message));
   } else {
-    console.warn("⚠️ WebSocket not ready. Message not sent:", message);
+    console.warn("❌ WebSocket not ready, message not sent:", message);
   }
 }
 
@@ -215,13 +233,28 @@ function setMicEnabled(enabled) {
 
 async function startLocalStream() {
   if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+    const backCamera = videoDevices.find(device =>
+      device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment')
+    );
+    currentCameraIndex = videoDevices.indexOf(backCamera) !== -1 ? videoDevices.indexOf(backCamera) : 0;
+
+    const selectedDeviceId = videoDevices[currentCameraIndex]?.deviceId;
+
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined },
+      audio: true
+    });
+
     localVideo.srcObject = localStream;
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
   }
 
   muteButton.disabled = false;
   cameraButton.disabled = false;
+  switchCameraButton.disabled = videoDevices.length > 1 ? false : true;
   speakerButton.disabled = false;
   musicButton.disabled = false;
   loopButton.disabled = false;
