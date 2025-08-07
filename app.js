@@ -16,7 +16,13 @@ const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
 const musicButton = document.getElementById('musicButton');
+const loopButton = document.getElementById('loopButton');
+const volumeSlider = document.getElementById('volumeSlider');
+const trackSelect = document.getElementById('trackSelect');
 
+let musicAudio = null;
+let musicTrack = null;
+let musicContext = null;
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -30,11 +36,9 @@ document.getElementById('callButton').onclick = async () => {
   sendMessage({ type: 'offer', sdp: offer.sdp });
   console.log("📞 Offer sent");
 
-  // Caller should mute their mic
   setMicEnabled(false);
   muteButton.textContent = 'Unmute Mic';
 
-  // Speaker ON by default
   isSpeakerMuted = false;
   remoteVideo.muted = false;
   speakerButton.textContent = 'Mute Speakers';
@@ -71,26 +75,57 @@ fullscreenButton.onclick = () => {
 };
 
 musicButton.onclick = async () => {
+  if (musicAudio && !musicAudio.paused) {
+    musicAudio.pause();
+    musicAudio.currentTime = 0;
+
+    if (musicTrack) {
+      peerConnection.getSenders().forEach(sender => {
+        if (sender.track === musicTrack) {
+          peerConnection.removeTrack(sender);
+        }
+      });
+    }
+
+    musicButton.textContent = 'Play Music to Callee';
+    return;
+  }
+
   try {
-    const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
+    const selectedUrl = trackSelect.value;
 
-    const audio = new Audio(audioUrl);
-    audio.crossOrigin = 'anonymous';
-    audio.loop = false;
-    await audio.play();
+    musicAudio = new Audio(selectedUrl);
+    musicAudio.crossOrigin = 'anonymous';
+    musicAudio.loop = loopButton.textContent === 'Disable Loop';
+    musicAudio.volume = volumeSlider.value;
 
-    const audioContext = new AudioContext();
-    const source = audioContext.createMediaElementSource(audio);
-    const destination = audioContext.createMediaStreamDestination();
+    await musicAudio.play();
+
+    musicContext = new AudioContext();
+    const source = musicContext.createMediaElementSource(musicAudio);
+    const destination = musicContext.createMediaStreamDestination();
     source.connect(destination);
-    source.connect(audioContext.destination);
+    source.connect(musicContext.destination);
 
-    const musicTrack = destination.stream.getAudioTracks()[0];
+    musicTrack = destination.stream.getAudioTracks()[0];
     peerConnection.addTrack(musicTrack, destination.stream);
 
+    musicButton.textContent = 'Stop Music';
     console.log("🎵 Streaming music to callee");
   } catch (err) {
     console.error("❌ Music playback failed:", err);
+  }
+};
+
+loopButton.onclick = () => {
+  if (!musicAudio) return;
+  musicAudio.loop = !musicAudio.loop;
+  loopButton.textContent = musicAudio.loop ? 'Disable Loop' : 'Enable Loop';
+};
+
+volumeSlider.oninput = () => {
+  if (musicAudio) {
+    musicAudio.volume = volumeSlider.value;
   }
 };
 
@@ -103,78 +138,4 @@ socket.onmessage = async (event) => {
     data = JSON.parse(event.data);
   }
 
-  if (data.type === 'offer' && !isCaller) {
-    await startLocalStream();
-    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    sendMessage({ type: 'answer', sdp: answer.sdp });
-
-    // Callee mic should be ON by default
-    setMicEnabled(true);
-    muteButton.textContent = 'Mute Mic';
-
-    // Speaker ON by default
-    isSpeakerMuted = false;
-    remoteVideo.muted = false;
-    speakerButton.textContent = 'Mute Speakers';
-  }
-
-  if (data.type === 'answer' && isCaller) {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
-  }
-
-  if (data.type === 'candidate') {
-    try {
-      const candidate = new RTCIceCandidate(data.candidate);
-      await peerConnection.addIceCandidate(candidate);
-    } catch (err) {
-      console.error("❌ ICE error", err);
-    }
-  }
-};
-
-peerConnection.onicecandidate = event => {
-  if (event.candidate) {
-    sendMessage({ type: 'candidate', candidate: event.candidate });
-  }
-};
-
-peerConnection.ontrack = event => {
-  const [stream] = event.streams;
-  remoteVideo.srcObject = stream;
-
-  remoteVideo.onloadedmetadata = () => {
-    remoteVideo.muted = isSpeakerMuted;
-    remoteVideo.play().catch(err => {
-      console.warn("⚠️ Auto-play error:", err);
-      document.addEventListener("click", () => remoteVideo.play());
-    });
-  };
-
-  fullscreenButton.disabled = false;
-  console.log("📡 Remote stream received");
-};
-
-function sendMessage(message) {
-  socket.send(JSON.stringify(message));
-}
-
-function setMicEnabled(enabled) {
-  const track = localStream?.getAudioTracks()[0];
-  if (track) track.enabled = enabled;
-}
-
-async function startLocalStream() {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localVideo.srcObject = localStream;
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-  }
-
-  muteButton.disabled = false;
-  cameraButton.disabled = false;
-  speakerButton.disabled = false;
-  musicButton.disabled = false;
-
-}
+  if (data.type === 'offer' && !i
