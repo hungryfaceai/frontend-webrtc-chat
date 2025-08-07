@@ -203,4 +203,5 @@ async function startLocalStream() {
   cameraButton.disabled = false;
   speakerButton.disabled = false;
   fullscreenButton.disabled = false;
-  switchCameraButton.disabled = videoDev
+  switchCameraButton.disabled = videoDevices.length < 2;
+}
