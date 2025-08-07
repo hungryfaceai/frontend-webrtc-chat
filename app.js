@@ -4,8 +4,6 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 let localStream;
 let isCaller = false;
 let isSpeakerMuted = false;
-let videoDevices = [];
-let currentCameraIndex = 0;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -17,7 +15,8 @@ const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
 const fullscreenButton = document.getElementById('fullscreenButton');
-const switchCameraButton = document.getElementById('switchCameraButton');
+const musicButton = document.getElementById('musicButton');
+
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -29,32 +28,36 @@ document.getElementById('callButton').onclick = async () => {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   sendMessage({ type: 'offer', sdp: offer.sdp });
+  console.log("📞 Offer sent");
 
+  // Caller should mute their mic
   setMicEnabled(false);
-  muteButton.textContent = '🎙️ Unmute';
+  muteButton.textContent = 'Unmute Mic';
+
+  // Speaker ON by default
   isSpeakerMuted = false;
   remoteVideo.muted = false;
-  speakerButton.textContent = '🔈 Mute';
+  speakerButton.textContent = 'Mute Speakers';
 };
 
 muteButton.onclick = () => {
   const audioTrack = localStream?.getAudioTracks()[0];
   if (!audioTrack) return;
   audioTrack.enabled = !audioTrack.enabled;
-  muteButton.textContent = audioTrack.enabled ? '🎙️ Mute' : '🎙️ Unmute';
+  muteButton.textContent = audioTrack.enabled ? 'Mute Mic' : 'Unmute Mic';
 };
 
 cameraButton.onclick = () => {
   const videoTrack = localStream?.getVideoTracks()[0];
   if (!videoTrack) return;
   videoTrack.enabled = !videoTrack.enabled;
-  cameraButton.textContent = videoTrack.enabled ? '📷 Off' : '📷 On';
+  cameraButton.textContent = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
 };
 
 speakerButton.onclick = () => {
   isSpeakerMuted = !isSpeakerMuted;
   remoteVideo.muted = isSpeakerMuted;
-  speakerButton.textContent = isSpeakerMuted ? '🔈 Unmute' : '🔈 Mute';
+  speakerButton.textContent = isSpeakerMuted ? 'Unmute Speakers' : 'Mute Speakers';
 };
 
 fullscreenButton.onclick = () => {
@@ -67,34 +70,28 @@ fullscreenButton.onclick = () => {
   }
 };
 
-switchCameraButton.onclick = async () => {
-  if (videoDevices.length < 2) return;
+musicButton.onclick = async () => {
+  try {
+    const audioUrl = 'https://raw.githubusercontent.com/hungryfaceai/frontend-webrtc-chat/main/lullaby/lullaby-baby-sleep-music-331777.mp3';
 
-  const oldTrack = localStream.getVideoTracks()[0];
-  if (oldTrack) {
-    oldTrack.stop();
-    peerConnection.getSenders().forEach(sender => {
-      if (sender.track === oldTrack) {
-        peerConnection.removeTrack(sender);
-      }
-    });
+    const audio = new Audio(audioUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.loop = false;
+    await audio.play();
+
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaElementSource(audio);
+    const destination = audioContext.createMediaStreamDestination();
+    source.connect(destination);
+    source.connect(audioContext.destination);
+
+    const musicTrack = destination.stream.getAudioTracks()[0];
+    peerConnection.addTrack(musicTrack, destination.stream);
+
+    console.log("🎵 Streaming music to callee");
+  } catch (err) {
+    console.error("❌ Music playback failed:", err);
   }
-
-  currentCameraIndex = (currentCameraIndex + 1) % videoDevices.length;
-  const newDeviceId = videoDevices[currentCameraIndex].deviceId;
-
-  const newStream = await navigator.mediaDevices.getUserMedia({
-    video: { deviceId: { exact: newDeviceId } },
-    audio: false
-  });
-
-  const newTrack = newStream.getVideoTracks()[0];
-  localStream.removeTrack(oldTrack);
-  localStream.addTrack(newTrack);
-  peerConnection.addTrack(newTrack, localStream);
-  localVideo.srcObject = localStream;
-
-  switchCameraButton.title = videoDevices[currentCameraIndex].label || "Switch Camera";
 };
 
 socket.onmessage = async (event) => {
@@ -113,11 +110,14 @@ socket.onmessage = async (event) => {
     await peerConnection.setLocalDescription(answer);
     sendMessage({ type: 'answer', sdp: answer.sdp });
 
+    // Callee mic should be ON by default
     setMicEnabled(true);
-    muteButton.textContent = '🎙️ Mute';
+    muteButton.textContent = 'Mute Mic';
+
+    // Speaker ON by default
     isSpeakerMuted = false;
     remoteVideo.muted = false;
-    speakerButton.textContent = '🔈 Mute';
+    speakerButton.textContent = 'Mute Speakers';
   }
 
   if (data.type === 'answer' && isCaller) {
@@ -126,7 +126,8 @@ socket.onmessage = async (event) => {
 
   if (data.type === 'candidate') {
     try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      const candidate = new RTCIceCandidate(data.candidate);
+      await peerConnection.addIceCandidate(candidate);
     } catch (err) {
       console.error("❌ ICE error", err);
     }
@@ -152,12 +153,11 @@ peerConnection.ontrack = event => {
   };
 
   fullscreenButton.disabled = false;
+  console.log("📡 Remote stream received");
 };
 
 function sendMessage(message) {
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(message));
-  }
+  socket.send(JSON.stringify(message));
 }
 
 function setMicEnabled(enabled) {
@@ -167,34 +167,7 @@ function setMicEnabled(enabled) {
 
 async function startLocalStream() {
   if (!localStream) {
-    const initialStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true
-    });
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    videoDevices = devices.filter(d => d.kind === 'videoinput');
-
-    const backCamera = videoDevices.find(device =>
-      device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment')
-    );
-
-    currentCameraIndex = videoDevices.indexOf(backCamera) !== -1
-      ? videoDevices.indexOf(backCamera)
-      : 0;
-
-    const selectedDeviceId = videoDevices[currentCameraIndex]?.deviceId;
-
-    if (selectedDeviceId) {
-      initialStream.getTracks().forEach(track => track.stop());
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: selectedDeviceId } },
-        audio: true
-      });
-    } else {
-      localStream = initialStream;
-    }
-
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     localVideo.srcObject = localStream;
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
   }
@@ -202,6 +175,6 @@ async function startLocalStream() {
   muteButton.disabled = false;
   cameraButton.disabled = false;
   speakerButton.disabled = false;
-  fullscreenButton.disabled = false;
-  switchCameraButton.disabled = videoDevices.length < 2;
+  musicButton.disabled = false;
+
 }
