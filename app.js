@@ -4,7 +4,6 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 let localStream;
 let isCaller = false;
 let isSpeakerMuted = false;
-let currentVideoDeviceId = null;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -20,13 +19,11 @@ const musicButton = document.getElementById('musicButton');
 const cameraSelect = document.getElementById('cameraSelect');
 
 document.getElementById('startButton').onclick = async () => {
-  await populateCameraOptions();
   await startLocalStream();
 };
 
 document.getElementById('callButton').onclick = async () => {
   isCaller = true;
-  await populateCameraOptions();
   await startLocalStream();
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
@@ -95,7 +92,6 @@ musicButton.onclick = async () => {
 };
 
 cameraSelect.onchange = async () => {
-  currentVideoDeviceId = cameraSelect.value;
   await startLocalStream();
 };
 
@@ -109,7 +105,6 @@ socket.onmessage = async (event) => {
   }
 
   if (data.type === 'offer' && !isCaller) {
-    await populateCameraOptions();
     await startLocalStream();
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
     const answer = await peerConnection.createAnswer();
@@ -174,14 +169,19 @@ async function startLocalStream() {
     localStream = null;
   }
 
+  const facingMode = cameraSelect.value || 'environment'; // Default to back camera
   const constraints = {
     audio: true,
-    video: currentVideoDeviceId
-      ? { deviceId: { exact: currentVideoDeviceId } }
-      : { facingMode: { ideal: 'environment' } }
+    video: { facingMode: { exact: facingMode } }
   };
 
-  localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (err) {
+    console.error("❌ getUserMedia error:", err);
+    return;
+  }
+
   localVideo.srcObject = localStream;
 
   const senders = peerConnection.getSenders();
@@ -198,30 +198,4 @@ async function startLocalStream() {
   cameraButton.disabled = false;
   speakerButton.disabled = false;
   musicButton.disabled = false;
-}
-
-async function populateCameraOptions() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-  cameraSelect.innerHTML = '';
-  videoDevices.forEach(device => {
-    const option = document.createElement('option');
-    option.value = device.deviceId;
-    option.text = device.label || `Camera ${cameraSelect.length + 1}`;
-    cameraSelect.appendChild(option);
-  });
-
-  const backCam = videoDevices.find(device =>
-    device.label.toLowerCase().includes('back') ||
-    device.label.toLowerCase().includes('environment')
-  );
-
-  if (backCam) {
-    currentVideoDeviceId = backCam.deviceId;
-    cameraSelect.value = backCam.deviceId;
-  } else {
-    currentVideoDeviceId = videoDevices[0]?.deviceId || null;
-    cameraSelect.value = currentVideoDeviceId;
-  }
 }
