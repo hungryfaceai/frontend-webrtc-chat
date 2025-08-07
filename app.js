@@ -136,10 +136,9 @@ async function startLocalStream() {
       console.log("✅ Local stream already active");
     }
 
-    // Double-check audio and video track states
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
-      audioTrack.enabled = true; // Make sure it's not muted initially
+      audioTrack.enabled = true;
       console.log("🎤 Mic is ON");
     } else {
       console.warn("⚠️ No audio track found.");
