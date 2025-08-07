@@ -18,7 +18,7 @@
     button {
       margin: 10px;
       padding: 10px 20px;
-      font-size: 20px;
+      font-size: 16px;
       cursor: pointer;
     }
     #controls {
@@ -27,7 +27,7 @@
   </style>
 </head>
 <body>
-  <h2>WebRTC P2P Video Chat</h2>
+  <h2>WebRTC P2P Video Chat 2</h2>
 
   <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
@@ -35,17 +35,13 @@
   <div id="controls">
     <button id="startButton">Start</button>
     <button id="callButton">Call</button>
-    <button id="muteButton" disabled>🎙️ Mute</button>
-    <button id="cameraButton" disabled>📷 Off</button>
-    <button id="speakerButton" disabled>🔈 Mute</button>
-    <button id="fullscreenButton" disabled>⛶</button>
-    <button id="switchCameraButton" disabled title="Switch Camera">🔄📷</button>
+    <button id="muteButton" disabled>Mute Mic</button>
+    <button id="cameraButton" disabled>Turn Camera Off</button>
+    <button id="speakerButton" disabled>Mute Speakers</button>
+    <button id="fullscreenButton" disabled>Full Screen</button>
+    <button id="musicButton" disabled>Play Music to Baby</button>
   </div>
-  <footer class="copyright">
-    &copy; 2025 Fishex Ltd. All rights reserved.
-  </footer>
-  
+
   <script src="app.js"></script>
 </body>
 </html>
-
