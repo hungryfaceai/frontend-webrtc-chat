@@ -138,4 +138,79 @@ socket.onmessage = async (event) => {
     data = JSON.parse(event.data);
   }
 
-  if (data.type === 'offer' && !i
+  if (data.type === 'offer' && !isCaller) {
+    await startLocalStream();
+    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    sendMessage({ type: 'answer', sdp: answer.sdp });
+
+    setMicEnabled(true);
+    muteButton.textContent = 'Mute Mic';
+
+    isSpeakerMuted = false;
+    remoteVideo.muted = false;
+    speakerButton.textContent = 'Mute Speakers';
+  }
+
+  if (data.type === 'answer' && isCaller) {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+  }
+
+  if (data.type === 'candidate') {
+    try {
+      const candidate = new RTCIceCandidate(data.candidate);
+      await peerConnection.addIceCandidate(candidate);
+    } catch (err) {
+      console.error("❌ ICE error", err);
+    }
+  }
+};
+
+peerConnection.onicecandidate = event => {
+  if (event.candidate) {
+    sendMessage({ type: 'candidate', candidate: event.candidate });
+  }
+};
+
+peerConnection.ontrack = event => {
+  const [stream] = event.streams;
+  remoteVideo.srcObject = stream;
+
+  remoteVideo.onloadedmetadata = () => {
+    remoteVideo.muted = isSpeakerMuted;
+    remoteVideo.play().catch(err => {
+      console.warn("⚠️ Auto-play error:", err);
+      document.addEventListener("click", () => remoteVideo.play());
+    });
+  };
+
+  fullscreenButton.disabled = false;
+  console.log("📡 Remote stream received");
+};
+
+function sendMessage(message) {
+  socket.send(JSON.stringify(message));
+}
+
+function setMicEnabled(enabled) {
+  const track = localStream?.getAudioTracks()[0];
+  if (track) track.enabled = enabled;
+}
+
+async function startLocalStream() {
+  if (!localStream) {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+  }
+
+  muteButton.disabled = false;
+  cameraButton.disabled = false;
+  speakerButton.disabled = false;
+  fullscreenButton.disabled = false;
+  musicButton.disabled = false;
+  loopButton.disabled = false;
+  volumeSlider.disabled = false;
+  trackSelect.disabled = false;
+}
