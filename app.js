@@ -14,9 +14,7 @@ const remoteVideo = document.getElementById('remoteVideo');
 const muteButton = document.getElementById('muteButton');
 const cameraButton = document.getElementById('cameraButton');
 const speakerButton = document.getElementById('speakerButton');
-const volumeControls = document.getElementById('volumeControls');
-
-const audioContexts = []; // Store all per-audio-track gain controls
+const volumeSlider = document.getElementById('volumeSlider');
 
 document.getElementById('startButton').onclick = async () => {
   await startLocalStream();
@@ -32,38 +30,33 @@ document.getElementById('callButton').onclick = async () => {
 };
 
 muteButton.onclick = () => {
-  if (!localStream) return;
-  const audioTrack = localStream.getAudioTracks()[0];
+  const audioTrack = localStream?.getAudioTracks()[0];
   if (!audioTrack) return;
-
   audioTrack.enabled = !audioTrack.enabled;
   muteButton.textContent = audioTrack.enabled ? 'Mute Mic' : 'Unmute Mic';
-  console.log(audioTrack.enabled ? "🎤 Mic unmuted" : "🔇 Mic muted");
 };
 
 cameraButton.onclick = () => {
-  if (!localStream) return;
-  const videoTrack = localStream.getVideoTracks()[0];
+  const videoTrack = localStream?.getVideoTracks()[0];
   if (!videoTrack) return;
-
   videoTrack.enabled = !videoTrack.enabled;
   cameraButton.textContent = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
-  console.log(videoTrack.enabled ? "🎥 Camera on" : "📷 Camera off");
 };
 
 speakerButton.onclick = () => {
   isSpeakerMuted = !isSpeakerMuted;
-  audioContexts.forEach(ctx => {
-    ctx.gainNode.gain.value = isSpeakerMuted ? 0 : ctx.slider.value;
-  });
-
+  remoteVideo.volume = isSpeakerMuted ? 0 : volumeSlider.value;
   speakerButton.textContent = isSpeakerMuted ? 'Unmute Speakers' : 'Mute Speakers';
-  console.log(isSpeakerMuted ? "🔈 Speakers muted" : "🔊 Speakers unmuted");
+};
+
+volumeSlider.oninput = () => {
+  if (!isSpeakerMuted) {
+    remoteVideo.volume = volumeSlider.value;
+  }
 };
 
 socket.onmessage = async (event) => {
   let data;
-
   if (event.data instanceof Blob) {
     const text = await event.data.text();
     data = JSON.parse(text);
@@ -71,25 +64,19 @@ socket.onmessage = async (event) => {
     data = JSON.parse(event.data);
   }
 
-  console.log("📩 Received message:", data);
-
   if (data.type === 'offer' && !isCaller) {
-    console.log("📩 Processing offer");
     await startLocalStream();
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     sendMessage({ type: 'answer', sdp: answer.sdp });
-    console.log("📤 Answer sent");
   }
 
   if (data.type === 'answer' && isCaller) {
-    console.log("📩 Received answer");
     await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
   }
 
   if (data.type === 'candidate') {
-    console.log("🧊 ICE candidate received:", data.candidate);
     try {
       const candidate = new RTCIceCandidate(data.candidate);
       await peerConnection.addIceCandidate(candidate);
@@ -110,6 +97,7 @@ peerConnection.ontrack = event => {
   remoteVideo.srcObject = stream;
 
   remoteVideo.onloadedmetadata = () => {
+    remoteVideo.volume = isSpeakerMuted ? 0 : volumeSlider.value;
     remoteVideo.play().catch(err => {
       console.warn("⚠️ Auto-play error:", err);
       document.addEventListener("click", () => remoteVideo.play());
@@ -117,10 +105,6 @@ peerConnection.ontrack = event => {
   };
 
   console.log("📡 Remote stream received");
-
-  if (event.track.kind === 'audio') {
-    setupAudioControl(stream);
-  }
 };
 
 function sendMessage(message) {
@@ -128,49 +112,13 @@ function sendMessage(message) {
 }
 
 async function startLocalStream() {
-  try {
-    if (!localStream) {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-      console.log("🎥 Local stream started");
-    }
-
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) audioTrack.enabled = true;
-
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) videoTrack.enabled = true;
-
-    muteButton.disabled = false;
-    cameraButton.disabled = false;
-    speakerButton.disabled = false;
-  } catch (err) {
-    console.error("❌ Error accessing media devices:", err);
+  if (!localStream) {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
   }
-}
 
-function setupAudioControl(stream) {
-  const audioContext = new AudioContext();
-  const source = audioContext.createMediaStreamSource(stream);
-  const gainNode = audioContext.createGain();
-  source.connect(gainNode).connect(audioContext.destination);
-
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = 0;
-  slider.max = 1;
-  slider.step = 0.01;
-  slider.value = 1;
-  slider.oninput = () => {
-    gainNode.gain.value = isSpeakerMuted ? 0 : slider.value;
-  };
-
-  const label = document.createElement('label');
-  label.textContent = '🔊 Volume: ';
-  label.appendChild(slider);
-
-  volumeControls.appendChild(label);
-
-  audioContexts.push({ audioContext, gainNode, slider });
+  muteButton.disabled = false;
+  cameraButton.disabled = false;
+  speakerButton.disabled = false;
 }
