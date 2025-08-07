@@ -3,8 +3,6 @@ const socket = new WebSocket(SIGNALING_SERVER_URL);
 
 let localStream;
 let isCaller = false;
-let isMicMuted = false;
-let isCameraOff = false;
 
 const peerConnection = new RTCPeerConnection({
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -21,6 +19,7 @@ document.getElementById('startButton').onclick = async () => {
 
 document.getElementById('callButton').onclick = async () => {
   isCaller = true;
+  await startLocalStream(); // Ensure tracks are added before offer
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   sendMessage({ type: 'offer', sdp: offer.sdp });
@@ -36,11 +35,9 @@ muteButton.onclick = () => {
     return;
   }
 
-  isMicMuted = !isMicMuted;
-  audioTrack.enabled = !isMicMuted;
-
-  muteButton.textContent = isMicMuted ? 'Unmute Mic' : 'Mute Mic';
-  console.log(isMicMuted ? "🔇 Mic muted" : "🎤 Mic unmuted");
+  audioTrack.enabled = !audioTrack.enabled;
+  muteButton.textContent = audioTrack.enabled ? 'Mute Mic' : 'Unmute Mic';
+  console.log(audioTrack.enabled ? "🎤 Mic unmuted" : "🔇 Mic muted");
 };
 
 cameraButton.onclick = () => {
@@ -52,11 +49,9 @@ cameraButton.onclick = () => {
     return;
   }
 
-  isCameraOff = !isCameraOff;
-  videoTrack.enabled = !isCameraOff;
-
-  cameraButton.textContent = isCameraOff ? 'Turn Camera On' : 'Turn Camera Off';
-  console.log(isCameraOff ? "📷 Camera off" : "🎥 Camera on");
+  videoTrack.enabled = !videoTrack.enabled;
+  cameraButton.textContent = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
+  console.log(videoTrack.enabled ? "🎥 Camera on" : "📷 Camera off");
 };
 
 socket.onmessage = async (event) => {
@@ -132,22 +127,14 @@ async function startLocalStream() {
       localVideo.srcObject = localStream;
       localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
       console.log("🎥 Local stream started");
-    } else {
-      console.log("✅ Local stream already active");
     }
 
+    // Ensure audio and video start unmuted
     const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = true;
-      console.log("🎤 Mic is ON");
-    } else {
-      console.warn("⚠️ No audio track found.");
-    }
+    if (audioTrack) audioTrack.enabled = true;
 
     const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = true;
-    }
+    if (videoTrack) videoTrack.enabled = true;
 
     muteButton.disabled = false;
     cameraButton.disabled = false;
