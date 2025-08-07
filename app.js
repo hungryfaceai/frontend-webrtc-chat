@@ -27,6 +27,15 @@ document.getElementById('callButton').onclick = async () => {
   await peerConnection.setLocalDescription(offer);
   sendMessage({ type: 'offer', sdp: offer.sdp });
   console.log("📞 Offer sent");
+
+  // Caller should mute their mic
+  setMicEnabled(false);
+  muteButton.textContent = 'Unmute Mic';
+
+  // Speaker ON by default
+  isSpeakerMuted = false;
+  remoteVideo.muted = false;
+  speakerButton.textContent = 'Mute Speakers';
 };
 
 muteButton.onclick = () => {
@@ -74,6 +83,15 @@ socket.onmessage = async (event) => {
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     sendMessage({ type: 'answer', sdp: answer.sdp });
+
+    // Callee mic should be ON by default
+    setMicEnabled(true);
+    muteButton.textContent = 'Mute Mic';
+
+    // Speaker ON by default
+    isSpeakerMuted = false;
+    remoteVideo.muted = false;
+    speakerButton.textContent = 'Mute Speakers';
   }
 
   if (data.type === 'answer' && isCaller) {
@@ -114,6 +132,11 @@ peerConnection.ontrack = event => {
 
 function sendMessage(message) {
   socket.send(JSON.stringify(message));
+}
+
+function setMicEnabled(enabled) {
+  const track = localStream?.getAudioTracks()[0];
+  if (track) track.enabled = enabled;
 }
 
 async function startLocalStream() {
